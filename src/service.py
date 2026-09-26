@@ -2,7 +2,7 @@ from uuid import uuid4
 
 from .audit import AuditTrail
 from .domain import ConflictError, NotFoundError
-from .rules import RuleEngine
+from .rules import RuleEngine, pairing_view
 
 
 class DomainService:
@@ -13,6 +13,11 @@ class DomainService:
 
     def _lookup(self, kind, field, value):
         return self.repository.find_entities(self.rules.normalize_kind(kind), field, value)
+
+    def _decorate(self, entity):
+        if entity and entity["kind"] == "pairing":
+            return pairing_view(self.rules, self._lookup, entity)
+        return entity
 
     def health(self):
         return {"status": "ok" if self.repository.ping() else "error"}
@@ -26,7 +31,7 @@ class DomainService:
                 entity = self.repository.get_entity(existing)
                 if entity:
                     return entity
-        self.rules.validate_create(actor, kind, payload, self._lookup)
+        payload = self.rules.validate_create(actor, kind, payload, self._lookup)
         entity_id = str(payload.pop("id", "") or uuid4())
         if self.repository.get_entity(entity_id):
             raise ConflictError("entity already exists: " + entity_id)
@@ -35,7 +40,7 @@ class DomainService:
         self.audit.record(entity_id, actor, "create", None, status, {"kind": kind})
         if idempotency_key:
             self.repository.save_idempotency(actor.user_id, idempotency_key, entity_id)
-        return entity
+        return self._decorate(entity)
 
     def transition(self, actor, entity_id, action, data=None, expected_version=None):
         entity = self.repository.get_entity(entity_id)
@@ -62,12 +67,12 @@ class DomainService:
         entity = self.repository.get_entity(entity_id)
         if not entity:
             raise NotFoundError("entity not found: " + entity_id)
-        return entity
+        return self._decorate(entity)
 
     def list(self, kind=None, status=None):
         if kind:
             kind = self.rules.normalize_kind(kind)
-        return self.repository.list_entities(kind=kind, status=status)
+        return [self._decorate(entity) for entity in self.repository.list_entities(kind=kind, status=status)]
 
     def audit_log(self, entity_id=None):
         return self.repository.list_audit(entity_id=entity_id)

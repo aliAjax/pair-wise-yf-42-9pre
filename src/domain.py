@@ -33,6 +33,7 @@ class Role(str, Enum):
     registrar = "registrar"
     veterinarian = "veterinarian"
     coordinator = "coordinator"
+    committee = "committee"
 
 
 @dataclass

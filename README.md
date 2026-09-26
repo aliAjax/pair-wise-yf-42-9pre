@@ -11,7 +11,7 @@
 - `src/service.py`：用例编排、幂等处理、版本控制和审计写入。
 - `src/http_api.py`：HTTP路由、请求解析和统一错误响应。
 - `src/audit.py`：实体操作审计时间线。
-- `static/index.html`：最小演示页面。
+- `static/index.html`：演示页面（身份切换、动物状态、健康检查、配对审批）。
 - `tests/`：完整流程、规则和失败场景测试。
 
 ## 初始化与启动
@@ -24,7 +24,25 @@ python3 app.py --db ./data.db --port 8308
 
 ## 核心对象
 
-- `animal`：个体谱系；`pairing`：配对建议；`transfer`：机构和运输记录。
+- `animal`：个体谱系；状态：`active`（在馆健康）→ `quarantined`（隔离）/ `departed`（离馆）/ `deceased`（死亡），隔离和离馆可恢复。
+- `health_exam`：健康检查记录；兽医（`veterinarian`）用各自账号录入，结论为`passed`或`failed`。
+- `pairing`：配对建议；协调员（`coordinator`）提交时必须填写`sire_id`、`dam_id`及双方**最近一次**检查编号`sire_exam_id`、`dam_exam_id`。
+- `transfer`：机构和运输记录。
+
+## 配对审批流程
+
+1. 协调员提交建议（状态`proposed`），系统自动记录提交人账号。
+2. 繁育委员会（`committee`）批准或驳回。批准条件（三者同时满足）：
+   - 双方动物的**最近一次**健康检查均为`passed`；
+   - 双方动物当前均为`active`（不处于隔离、离馆或死亡）；
+   - 亲缘风险系数 ≤ 0.125。
+3. 批准后（`approved`）如任一方进入隔离、离馆或死亡，`complete`（登记产仔）会被拒绝，错误信息和配对视图的`blockers`字段都会指明是哪只动物及其当前状态。
+4. 被驳回（`rejected`）或批准后动物状态变化的同一条建议，可由协调员`resubmit`重新送审（可同时更新检查编号），回到`proposed`再次审批。
+5. 查询配对（`GET /api/entities/<id>`或`GET /api/pairing`）返回委员会视图：双方动物当前状态、引用检查与最近检查结论、亲缘系数、`approvable`/`approval_issues`、`can_register_offspring`/`blockers`。
+
+## 角色
+
+`admin`、`registrar`（动物/运输登记）、`veterinarian`（健康检查、隔离/解除隔离、死亡登记）、`coordinator`（提交建议、重新送审、登记产仔）、`committee`（批准/驳回）、`viewer`（只读）。
 
 ## 主要接口
 
