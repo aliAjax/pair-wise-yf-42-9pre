@@ -2,7 +2,7 @@ from uuid import uuid4
 
 from .audit import AuditTrail
 from .domain import ConflictError, NotFoundError
-from .rules import RuleEngine
+from .rules import RuleEngine, evaluate_pairing
 
 
 class DomainService:
@@ -63,6 +63,38 @@ class DomainService:
         if not entity:
             raise NotFoundError("entity not found: " + entity_id)
         return entity
+
+    def pairing_review(self, entity_id):
+        """Current committee view of a pairing: sides, checks, blockers."""
+        pairing = self.repository.get_entity(entity_id)
+        if not pairing:
+            raise NotFoundError("entity not found: " + entity_id)
+        if self.rules.normalize_kind(pairing["kind"]) != "pairing":
+            raise NotFoundError("entity is not a pairing: " + entity_id)
+        evaluation = evaluate_pairing(
+            self._lookup,
+            pairing["data"].get("sire_id"),
+            pairing["data"].get("dam_id"),
+            pairing["data"].get("sire_check_id"),
+            pairing["data"].get("dam_check_id"),
+        )
+        return {
+            "id": pairing["id"],
+            "status": pairing["status"],
+            "version": pairing["version"],
+            "proposed_by": pairing["data"].get("proposed_by"),
+            "approved_by": pairing["data"].get("approved_by"),
+            "can_approve": pairing["status"] == "proposed"
+            and not evaluation["approval_issues"],
+            "can_register_offspring": pairing["status"] == "approved"
+            and not evaluation["blockers"],
+            "can_resubmit": pairing["status"] in ("approved", "rejected"),
+            "sides": evaluation["sides"],
+            "approval_issues": evaluation["approval_issues"],
+            "blockers": evaluation["blockers"],
+            "inbreeding_coefficient": evaluation["inbreeding_coefficient"],
+            "inbreeding_limit": evaluation["inbreeding_limit"],
+        }
 
     def list(self, kind=None, status=None):
         if kind:

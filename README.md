@@ -24,14 +24,27 @@ python3 app.py --db ./data.db --port 8308
 
 ## 核心对象
 
-- `animal`：个体谱系；`pairing`：配对建议；`transfer`：机构和运输记录。
+- `animal`：个体谱系，状态为 `active / quarantined / departed / deceased`。
+- `health_check`：单只动物的一次健康检查，状态为 `pending / passed / failed`，结果由兽医账号录入。
+- `pairing`：配对建议，状态为 `proposed / approved / rejected / completed`。
+- `transfer`：机构和运输记录。
+
+## 繁育审批规则
+
+1. 协调员创建配对建议时必须填写 `sire_id`、`dam_id` 及双方最近健康检查编号 `sire_check_id`、`dam_check_id`；检查必须真实存在且属于对应动物。
+2. 兽医在自己的账号下对各自负责的检查执行 `record_result`（`passed` 或 `failed`），结果只能录入一次，录入人记录为 `checked_by`。
+3. 繁育委员会（`committee` 角色）批准时实时校验：双方检查均为 `passed`、双方动物当前均为 `active`、亲缘系数不高于 `0.125`，任一不满足即拒绝，错误中带结构化原因。
+4. 批准后任一只动物进入隔离（`quarantined`）、离馆（`departed`）或死亡（`deceased`），`complete` 登记产仔会被拒绝，响应指出具体动物编号、名称和当前状态。
+5. 动物恢复健康后，协调员可对同一条建议执行 `resubmit` 回到 `proposed`，由委员会重新批准；被驳回的建议也可重新送审。
+6. `GET /api/pairings/<id>/review` 返回双方动物与检查的实时状态快照、批准阻断项（`approval_issues`）和登记阻断项（`blockers`），供页面展示。
 
 ## 主要接口
 
 - `GET /health`：健康检查。
-- `GET /api/<kind>`：按对象类型查询，可用`?status=`过滤。
+- `GET /api/<kind>`：按对象类型查询，可用`?status=`过滤；`kind` 支持 `animals`、`health_checks`、`pairings`、`transfers`。
 - `POST /api/<kind>`：创建对象；请求体为JSON。
 - `GET /api/entities/<id>`：读取对象当前版本。
+- `GET /api/pairings/<id>/review`：配对建议的实时审查视图。
 - `POST /api/entities/<id>/actions`：提交`{"action":"动作名","data":{...},"expected_version":数字}`。
 - `GET /api/audit`：读取审计记录。
 

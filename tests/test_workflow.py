@@ -32,7 +32,21 @@ class WorkflowTest(unittest.TestCase):
 
     def test_full_workflow(self):
         created = {}
-        steps = [{'op': 'create', 'as': 'sire', 'kind': 'animal', 'data': {'name': 'M-1', 'sex': 'male'}}, {'op': 'create', 'as': 'dam', 'kind': 'animal', 'data': {'name': 'F-1', 'sex': 'female'}}, {'op': 'create', 'as': 'pairing', 'kind': 'pairing', 'data': {'proposed_by': 'coordinator'}}, {'op': 'transition', 'target': 'pairing', 'action': 'approve', 'data': {'sire_id': '{sire}', 'dam_id': '{dam}', 'approvals': ['vet-1']}, 'expect': 'approved'}, {'op': 'transition', 'target': 'pairing', 'action': 'complete', 'data': {'offspring_ids': ['offspring-1']}, 'expect': 'completed'}, {'op': 'create', 'as': 'transfer', 'kind': 'transfer', 'data': {'animal_id': '{sire}', 'from_institution': 'Zoo-A', 'to_institution': 'Zoo-B'}}, {'op': 'transition', 'target': 'transfer', 'action': 'authorize', 'data': {'permit_id': 'P-1'}, 'expect': 'authorized'}, {'op': 'transition', 'target': 'transfer', 'action': 'ship', 'data': {'transport_id': 'T-1'}, 'expect': 'in_transit'}, {'op': 'transition', 'target': 'transfer', 'action': 'arrive', 'data': {'arrival_date': '2026-05-01'}, 'expect': 'completed'}]
+        steps = [
+            {'op': 'create', 'as': 'sire', 'kind': 'animal', 'data': {'name': 'M-1', 'sex': 'male'}},
+            {'op': 'create', 'as': 'dam', 'kind': 'animal', 'data': {'name': 'F-1', 'sex': 'female'}},
+            {'op': 'create', 'as': 'sire_check', 'kind': 'health_check', 'data': {'animal_id': '{sire}'}},
+            {'op': 'create', 'as': 'dam_check', 'kind': 'health_check', 'data': {'animal_id': '{dam}'}},
+            {'op': 'transition', 'target': 'sire_check', 'action': 'record_result', 'data': {'result': 'passed'}, 'expect': 'passed'},
+            {'op': 'transition', 'target': 'dam_check', 'action': 'record_result', 'data': {'result': 'passed'}, 'expect': 'passed'},
+            {'op': 'create', 'as': 'pairing', 'kind': 'pairing', 'data': {'proposed_by': 'coordinator', 'sire_id': '{sire}', 'dam_id': '{dam}', 'sire_check_id': '{sire_check}', 'dam_check_id': '{dam_check}'}},
+            {'op': 'transition', 'target': 'pairing', 'action': 'approve', 'data': {}, 'expect': 'approved'},
+            {'op': 'transition', 'target': 'pairing', 'action': 'complete', 'data': {'offspring_ids': ['offspring-1']}, 'expect': 'completed'},
+            {'op': 'create', 'as': 'transfer', 'kind': 'transfer', 'data': {'animal_id': '{sire}', 'from_institution': 'Zoo-A', 'to_institution': 'Zoo-B'}},
+            {'op': 'transition', 'target': 'transfer', 'action': 'authorize', 'data': {'permit_id': 'P-1'}, 'expect': 'authorized'},
+            {'op': 'transition', 'target': 'transfer', 'action': 'ship', 'data': {'transport_id': 'T-1'}, 'expect': 'in_transit'},
+            {'op': 'transition', 'target': 'transfer', 'action': 'arrive', 'data': {'arrival_date': '2026-05-01'}, 'expect': 'completed'},
+        ]
         for step in steps:
             if step["op"] == "create":
                 entity = self.service.create(
